@@ -8,14 +8,11 @@ module.exports = (sequelize, DataTypes) => {
       // Connect belongs to a user
       this.belongsTo(models.User, {
         foreignKey: 'userId',
-        as: 'user'
+        as: 'connectUser'
       });
       
-      // Connect can be used for job applications
-      this.hasMany(models.JobApplication, {
-        foreignKey: 'connectId',
-        as: 'jobApplications'
-      });
+      // Connect usage is tracked via metadata, not direct foreign key
+      // (Removed incorrect association)
     }
   }
 
@@ -35,7 +32,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Users',
+        model: 'users',
         key: 'id'
       }
     },

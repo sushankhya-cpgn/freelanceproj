@@ -47,7 +47,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Users',
+        model: 'users',
         key: 'id'
       }
     },
@@ -55,7 +55,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Users',
+        model: 'users',
         key: 'id'
       }
     },
@@ -63,7 +63,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: 'JobApplications',
+        model: 'job_applications',
         key: 'id'
       }
     },
@@ -71,7 +71,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: 'Contracts',
+        model: 'contracts',
         key: 'id'
       }
     },
@@ -81,7 +81,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     messageType: {
-      type: DataTypes.ENUM('text', 'image', 'file', 'system'),
+      type: DataTypes.ENUM('text', 'image', 'file', 'system', 'contract', 'video_call'),
       defaultValue: 'text'
     },
     // Attachments

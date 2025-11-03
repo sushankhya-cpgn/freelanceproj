@@ -8,7 +8,15 @@ const { validationResult } = require('express-validator');
 const createAgencyProfile = asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+    return res.status(400).json({ 
+      success: false,
+      error: 'Validation failed',
+      message: 'Please check your input and try again',
+      details: errors.array().map(err => ({
+        field: err.param,
+        message: err.msg
+      }))
+    });
   }
 
   const {
@@ -28,38 +36,61 @@ const createAgencyProfile = asyncHandler(async (req, res) => {
 
   const userId = req.userId;
 
-  // Check if user already has an agency
-  const existingAgency = await db.Agency.findOne({ where: { userId } });
-  if (existingAgency) {
-    return res.status(400).json({ error: 'User already has an agency profile' });
+  try {
+    // Check if user already has an agency
+    const existingAgency = await db.Agency.findOne({ where: { userId } });
+    if (existingAgency) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Agency profile already exists',
+        message: 'You already have an agency profile. Please update your existing profile instead.'
+      });
+    }
+
+    // Validate required fields
+    if (!agencyName || !agencyName.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Agency name is required',
+        message: 'Please provide a valid agency name'
+      });
+    }
+
+    // Create agency
+    const agency = await db.Agency.create({
+      userId,
+      agencyName: agencyName.trim(),
+      description: description?.trim() || null,
+      website,
+      phone,
+      address,
+      city,
+      country,
+      businessType,
+      taxId,
+      specializations: Array.isArray(specializations) ? specializations : [],
+      teamSize: teamSize ? parseInt(teamSize) : 1,
+      yearsInBusiness: yearsInBusiness ? parseInt(yearsInBusiness) : 0
+    });
+
+    // Get agency with user details
+    const agencyWithDetails = await db.Agency.findByPk(agency.id, {
+      include: [{ model: db.User, as: 'agencyUser' }]
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Agency profile created successfully',
+      agency: agencyWithDetails
+    });
+  } catch (error) {
+    console.error('Error creating agency profile:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create agency profile',
+      message: 'An error occurred while creating your agency profile. Please try again later.'
+    });
   }
-
-  // Create agency
-  const agency = await db.Agency.create({
-    userId,
-    agencyName,
-    description,
-    website,
-    phone,
-    address,
-    city,
-    country,
-    businessType,
-    taxId,
-    specializations,
-    teamSize,
-    yearsInBusiness
-  });
-
-  // Get agency with user details
-  const agencyWithDetails = await db.Agency.findByPk(agency.id, {
-    include: [{ model: db.User, as: 'user' }]
-  });
-
-  res.status(201).json({
-    message: 'Agency profile created successfully',
-    agency: agencyWithDetails
-  });
 });
 
 // @desc    Get agency profile
@@ -68,16 +99,32 @@ const createAgencyProfile = asyncHandler(async (req, res) => {
 const getAgencyProfile = asyncHandler(async (req, res) => {
   const userId = req.userId;
 
-  const agency = await db.Agency.findOne({
-    where: { userId },
-    include: [{ model: db.User, as: 'user' }]
-  });
+  try {
+    const agency = await db.Agency.findOne({
+      where: { userId },
+      include: [{ model: db.User, as: 'agencyUser' }]
+    });
 
-  if (!agency) {
-    return res.status(404).json({ error: 'Agency profile not found' });
+    if (!agency) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Agency profile not found',
+        message: 'No agency profile found for this account. Please create one to continue.'
+      });
+    }
+
+    res.json({ 
+      success: true,
+      agency 
+    });
+  } catch (error) {
+    console.error('Error fetching agency profile:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch agency profile',
+      message: 'An error occurred while loading your profile. Please try again later.'
+    });
   }
-
-  res.json({ agency });
 });
 
 // @desc    Update agency profile
@@ -101,31 +148,54 @@ const updateAgencyProfile = asyncHandler(async (req, res) => {
 
   const userId = req.userId;
 
-  const agency = await db.Agency.findOne({ where: { userId } });
-  if (!agency) {
-    return res.status(404).json({ error: 'Agency profile not found' });
+  try {
+    const agency = await db.Agency.findOne({ where: { userId } });
+    if (!agency) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Agency profile not found',
+        message: 'No agency profile found. Please create one first.'
+      });
+    }
+
+    // Validate agency name if provided
+    if (agencyName !== undefined && (!agencyName || !agencyName.trim())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid agency name',
+        message: 'Agency name cannot be empty'
+      });
+    }
+
+    // Update agency
+    await agency.update({
+      agencyName: agencyName ? agencyName.trim() : agency.agencyName,
+      description: description !== undefined ? (description?.trim() || null) : agency.description,
+      website: website !== undefined ? website : agency.website,
+      phone: phone !== undefined ? phone : agency.phone,
+      address: address !== undefined ? address : agency.address,
+      city: city !== undefined ? city : agency.city,
+      country: country !== undefined ? country : agency.country,
+      businessType: businessType !== undefined ? businessType : agency.businessType,
+      taxId: taxId !== undefined ? taxId : agency.taxId,
+      specializations: specializations !== undefined ? (Array.isArray(specializations) ? specializations : []) : agency.specializations,
+      teamSize: teamSize !== undefined ? parseInt(teamSize) : agency.teamSize,
+      yearsInBusiness: yearsInBusiness !== undefined ? parseInt(yearsInBusiness) : agency.yearsInBusiness
+    });
+
+    res.json({
+      success: true,
+      message: 'Agency profile updated successfully',
+      agency
+    });
+  } catch (error) {
+    console.error('Error updating agency profile:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update agency profile',
+      message: 'An error occurred while updating your profile. Please try again later.'
+    });
   }
-
-  // Update agency
-  await agency.update({
-    agencyName,
-    description,
-    website,
-    phone,
-    address,
-    city,
-    country,
-    businessType,
-    taxId,
-    specializations,
-    teamSize,
-    yearsInBusiness
-  });
-
-  res.json({
-    message: 'Agency profile updated successfully',
-    agency
-  });
 });
 
 // @desc    Get all agencies
@@ -440,6 +510,174 @@ const getAgencyStatistics = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Search freelancers
+// @route   GET /api/agencies/freelancers/search
+// @access  Private (Agency)
+const searchFreelancers = asyncHandler(async (req, res) => {
+  const {
+    searchTerm,
+    skills = [],
+    hourlyRateMin,
+    hourlyRateMax,
+    experienceLevel,
+    location,
+    availability,
+    page = 1,
+    limit = 10
+  } = req.query;
+
+  const { Op } = db.Sequelize;
+  const offset = (page - 1) * limit;
+  const whereClause = {
+    visibility: 'public'
+  };
+
+  // Search by name, expertise, or shortBio
+  if (searchTerm) {
+    whereClause[Op.or] = [
+      { firstName: { [Op.like]: `%${searchTerm}%` } },
+      { lastName: { [Op.like]: `%${searchTerm}%` } },
+      { expertise: { [Op.like]: `%${searchTerm}%` } },
+      { shortBio: { [Op.like]: `%${searchTerm}%` } }
+    ];
+  }
+
+  // Filter by location
+  if (location) {
+    whereClause[Op.or] = [
+      { city: { [Op.like]: `%${location}%` } },
+      { country: { [Op.like]: `%${location}%` } }
+    ];
+  }
+
+  // Filter by skills in category
+  if (skills.length > 0) {
+    whereClause.category = {
+      [Op.contains]: skills
+    };
+  }
+
+  const { count, rows: freelancers } = await db.Freelancer.findAndCountAll({
+    where: whereClause,
+    include: [
+      {
+        model: db.User,
+        as: 'freelancerUser',
+        attributes: [
+          'id', 
+          'email', 
+          'firstName', 
+          'lastName', 
+          'profileImage', 
+          'connectBalance',
+          'averageRating',
+          'totalRatings',
+          'totalReviews'
+        ]
+      }
+    ],
+    order: [['createdAt', 'DESC']],
+    limit: parseInt(limit),
+    offset: parseInt(offset)
+  });
+
+  // Attach simple platform stats to each freelancer
+  await Promise.all(
+    freelancers.map(async (f) => {
+      try {
+        const fid = f.id;
+        const [completedContracts, activeContracts, totalContracts] = await Promise.all([
+          db.Contract.count({ where: { freelancerId: fid, contractStatus: 'completed' } }),
+          db.Contract.count({ where: { freelancerId: fid, contractStatus: 'active' } }),
+          db.Contract.count({ where: { freelancerId: fid } }),
+        ]);
+        // Get real ratings from user model
+        const avgRating = f.freelancerUser?.averageRating || 0;
+        const reviewsCount = f.freelancerUser?.totalReviews || 0;
+        
+        f.dataValues.stats = {
+          completedContracts,
+          activeContracts,
+          totalContracts,
+          avgRating: parseFloat(avgRating),
+          reviewsCount,
+        };
+      } catch {}
+    })
+  );
+
+  const totalPages = Math.ceil(count / limit);
+
+  res.json({
+    success: true,
+    freelancers,
+    pagination: {
+      currentPage: parseInt(page),
+      totalPages,
+      totalFreelancers: count,
+      hasNext: page < totalPages,
+      hasPrev: page > 1
+    }
+  });
+});
+
+// @desc    Get freelancer profile details
+// @route   GET /api/agencies/freelancers/:id
+// @access  Private (Agency)
+const getFreelancerProfile = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const freelancer = await db.Freelancer.findByPk(id, {
+    include: [
+      {
+        model: db.User,
+        as: 'freelancerUser',
+        attributes: [
+          'id', 
+          'email', 
+          'firstName', 
+          'lastName', 
+          'profileImage', 
+          'createdAt',
+          'averageRating',
+          'totalRatings',
+          'totalReviews'
+        ]
+      }
+    ]
+  });
+
+  if (!freelancer) {
+    return res.status(404).json({ 
+      success: false,
+      error: 'Freelancer not found' 
+    });
+  }
+
+  // Get freelancer stats
+  const [completedContracts, activeContracts, totalContracts] = await Promise.all([
+    db.Contract.count({ where: { freelancerId: freelancer.id, contractStatus: 'completed' } }),
+    db.Contract.count({ where: { freelancerId: freelancer.id, contractStatus: 'active' } }),
+    db.Contract.count({ where: { freelancerId: freelancer.id } }),
+  ]);
+
+  // Get real rating from user model
+  const avgRating = freelancer.freelancerUser?.averageRating || 0;
+  const reviewsCount = freelancer.freelancerUser?.totalReviews || 0;
+
+  res.json({
+    success: true,
+    freelancer,
+    stats: {
+      completedContracts,
+      activeContracts,
+      totalContracts,
+      avgRating: parseFloat(avgRating),
+      reviewsCount,
+    }
+  });
+});
+
 module.exports = {
   createAgencyProfile,
   getAgencyProfile,
@@ -452,4 +690,6 @@ module.exports = {
   removeFreelancerFromAgency,
   getAgencyJobs,
   getAgencyStatistics,
+  searchFreelancers,
+  getFreelancerProfile,
 };

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <ShortName>WorkLabs</ShortName>
+  <Description>Search freelancers by skills on WorkLabs</Description>
+  <InputEncoding>UTF-8</InputEncoding>
+  <Image height="16" width="16" type="image/png">/logo.png</Image>
+  <Url type="text/html" method="get" template="http://localhost:5173/freelancers?search={searchTerms}" />
+  <Url type="application/x-suggestions+json" method="get" template="http://localhost:5173/api/freelancers/suggestions?q={searchTerms}" />
+</OpenSearchDescription>

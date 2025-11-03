@@ -1,6 +1,7 @@
 const { JobPost, User, JobApplication, Freelancer, sequelize } = require('../db');
 const { Op } = require('sequelize');
 const asyncHandler = require('express-async-handler');
+const searchService = require('../services/search/opensearchService');
 
 /**
  * @swagger
@@ -31,8 +32,9 @@ const asyncHandler = require('express-async-handler');
  */
 
 // @desc    Create a new job post
+// @desc    Create job post
 // @route   POST /api/jobs
-// @access  Private (Client only)
+// @access  Private (Client or Agency)
 const createJobPost = asyncHandler(async (req, res) => {
   const {
     title,
@@ -48,10 +50,12 @@ const createJobPost = asyncHandler(async (req, res) => {
     status = 'draft',
     connectRequired = 0,
     isFeatured = false,
-    isUrgent = false
+    isUrgent = false,
+    hireType = 'both'
   } = req.body;
 
   const clientId = req.user.id;
+  const userType = req.user.userType;
 
   // Validate required fields
   if (!title || !description || !budget || !budgetType) {
@@ -60,6 +64,18 @@ const createJobPost = asyncHandler(async (req, res) => {
       message: 'Title, description, budget, and budgetType are required'
     });
   }
+
+  // Validate hireType
+  if (!['freelancer', 'agency', 'both'].includes(hireType)) {
+    return res.status(400).json({
+      success: false,
+      message: 'hireType must be one of: freelancer, agency, both'
+    });
+  }
+
+  // If agency is posting a job, hireType should be 'freelancer' (agencies hire freelancers)
+  // If client is posting, they can specify any hireType
+  const finalHireType = userType === 'agency' ? 'freelancer' : hireType;
 
   // Create job post
   const job = await JobPost.create({
@@ -77,6 +93,7 @@ const createJobPost = asyncHandler(async (req, res) => {
     connectRequired,
     isFeatured,
     isUrgent,
+    hireType: finalHireType,
     clientId,
     isPublic: status === 'active'
   });
@@ -91,6 +108,10 @@ const createJobPost = asyncHandler(async (req, res) => {
       }
     ]
   });
+
+  try {
+    await searchService.indexJob(jobWithClient);
+  } catch (e) {}
 
   res.status(201).json({
     success: true,
@@ -233,6 +254,10 @@ const updateJobPost = asyncHandler(async (req, res) => {
 
   await job.update(updateData);
 
+  try {
+    await searchService.updateJob(job);
+  } catch (e) {}
+
   res.json({
     success: true,
     message: 'Job updated successfully',
@@ -260,10 +285,116 @@ const deleteJobPost = asyncHandler(async (req, res) => {
 
   await job.destroy();
 
+  try {
+    await searchService.deleteJob(id);
+  } catch (e) {}
+
   res.json({
     success: true,
     message: 'Job deleted successfully'
   });
+});
+
+// @desc    Search jobs via OpenSearch (fallback to DB if OpenSearch unavailable)
+// @route   GET /api/jobs/search
+// @access  Public
+const searchJobs = asyncHandler(async (req, res) => {
+  const {
+    q,
+    skills,
+    budgetMin,
+    budgetMax,
+    jobType,
+    experienceLevel,
+    page = 1,
+    limit = 10,
+  } = req.query;
+
+  const skillsArr = typeof skills === 'string' && skills.length
+    ? skills.split(',').map(s => s.trim()).filter(Boolean)
+    : Array.isArray(skills) ? skills : [];
+
+  try {
+    const result = await searchService.searchJobs({
+      q,
+      skills: skillsArr,
+      budgetMin: budgetMin != null ? Number(budgetMin) : undefined,
+      budgetMax: budgetMax != null ? Number(budgetMax) : undefined,
+      jobType,
+      experienceLevel,
+      page: Number(page),
+      limit: Number(limit),
+    });
+
+    const totalPages = Math.ceil(result.total / Number(limit || 10));
+    return res.json({
+      success: true,
+      jobs: result.results,
+      pagination: {
+        currentPage: Number(page || 1),
+        totalPages,
+        totalJobs: result.total,
+        hasNext: Number(page || 1) < totalPages,
+        hasPrev: Number(page || 1) > 1
+      }
+    });
+  } catch (e) {
+    // Fallback: DB search over public jobs
+    const whereClause = { status: 'active', isPublic: true };
+    if (q) {
+      whereClause[Op.or] = [
+        { title: { [Op.like]: `%${q}%` } },
+        { description: { [Op.like]: `%${q}%` } },
+      ];
+    }
+    if (skillsArr.length) {
+      whereClause.skills = { [Op.contains]: skillsArr };
+    }
+    if (budgetMin != null || budgetMax != null) {
+      whereClause.budget = {};
+      if (budgetMin != null) whereClause.budget[Op.gte] = Number(budgetMin);
+      if (budgetMax != null) whereClause.budget[Op.lte] = Number(budgetMax);
+    }
+    if (jobType) whereClause.budgetType = jobType;
+    if (experienceLevel) whereClause.experienceLevel = experienceLevel;
+
+    const offset = (Number(page) - 1) * Number(limit);
+    const { count, rows } = await JobPost.findAndCountAll({
+      where: whereClause,
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'firstName', 'lastName', 'profileImage'] },
+      ],
+      order: [['isFeatured', 'DESC'], ['createdAt', 'DESC']],
+      limit: Number(limit),
+      offset: Number(offset),
+      distinct: true,
+      subQuery: false,
+    });
+
+    const totalPages = Math.ceil(count / Number(limit || 10));
+    return res.json({
+      success: true,
+      jobs: rows,
+      pagination: {
+        currentPage: Number(page || 1),
+        totalPages,
+        totalJobs: count,
+        hasNext: Number(page || 1) < totalPages,
+        hasPrev: Number(page || 1) > 1,
+      },
+      // optional meta for observability
+      _fallback: true,
+    });
+  }
+});
+
+// @desc    Suggest job titles for typeahead
+// @route   GET /api/jobs/suggest
+// @access  Public
+const suggestJobs = asyncHandler(async (req, res) => {
+  const { q, limit = 5 } = req.query;
+  const suggestions = await searchService.suggestJobTitles({ q, limit: Number(limit) });
+  res.json({ success: true, suggestions });
 });
 
 // @desc    Get job statistics
@@ -369,8 +500,9 @@ const getUrgentJobs = asyncHandler(async (req, res) => {
 });
 
 // @desc    Get jobs posted by the authenticated client
+// @desc    Get current user's posted jobs
 // @route   GET /api/jobs/my-jobs
-// @access  Private (Client only)
+// @access  Private (Client or Agency)
 const getMyJobs = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, status } = req.query;
   const clientId = req.user.id;
@@ -388,6 +520,12 @@ const getMyJobs = asyncHandler(async (req, res) => {
         model: User,
         as: 'client',
         attributes: ['id', 'firstName', 'lastName', 'profileImage']
+      },
+      {
+        model: JobApplication,
+        as: 'applications',
+        attributes: ['id'],
+        required: false
       }
     ],
     order: [['createdAt', 'DESC']],
@@ -397,11 +535,17 @@ const getMyJobs = asyncHandler(async (req, res) => {
     subQuery: false
   });
 
+  // Add application count to each job
+  const jobsWithCounts = jobs.map(job => ({
+    ...job.toJSON(),
+    applicationCount: job.applications ? job.applications.length : 0
+  }));
+
   const totalPages = Math.ceil(count / limit);
 
   res.json({
     success: true,
-    jobs,
+    jobs: jobsWithCounts,
     pagination: {
       currentPage: parseInt(page),
       totalPages,
@@ -421,5 +565,7 @@ module.exports = {
   getJobStats,
   getFeaturedJobs,
   getUrgentJobs,
-  getMyJobs
+  getMyJobs,
+  searchJobs,
+  suggestJobs
 };

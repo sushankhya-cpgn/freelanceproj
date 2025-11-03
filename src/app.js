@@ -11,6 +11,7 @@ const path = require('path');
 const http = require('http');
 require('dotenv').config();
 
+
 // Import configurations
 const swaggerSpec = require('./config/swagger');
 const { connectDB } = require('./db/config/database');
@@ -21,6 +22,7 @@ const { RATE_LIMITS } = require('./constants');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
+const oauthRoutes = require('./routes/oauthRoutes');
 const userRoutes = require('./routes/userRoutes');
 const jobApplicationRoutes = require('./routes/jobApplicationRoutes');
 const connectRoutes = require('./routes/connectRoutes');
@@ -31,14 +33,25 @@ const freelancerRoutes = require('./routes/freelancerRoutes');
 const clientRoutes = require('./routes/clientRoutes');
 const jobPostRoutes = require('./routes/jobPostRoutes');
 const centrifugoRoutes = require('./routes/centrifugoRoutes');
+const novuRoutes = require('./routes/novuRoutes');
+const jitsiRoutes = require('./routes/jitsiRoutes');
+const callNoteRoutes = require('./routes/callNoteRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Initialize Express app
 const app = express();
 const server = http.createServer(app);
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3000;
+const requestLogger = require('./middleware/logrequest');
+
+app.use(requestLogger);
 
 // Connect to database
 connectDB();
+
+// Initialize Passport
+const passport = require('./config/passport');
+app.use(passport.initialize());
 
 // Security middleware
 app.use(helmet({
@@ -47,9 +60,12 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
+      // Allow images from same origin, data URLs, and any http/https origins (e.g., API server serving /uploads)
+      imgSrc: ["'self'", "data:", "https:", "http:"],
     },
   },
+  // Permit cross-origin resource loading for images to avoid CORP blocking in browsers
+  crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 
 // Rate limiting
@@ -62,6 +78,15 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for OPTIONS requests (CORS preflight)
+    if (req.method === 'OPTIONS') return true;
+    
+    // Skip rate limiting in development environment
+    if (process.env.NODE_ENV === 'development') return true;
+    
+    return false;
+  }
 });
 app.use(limiter);
 
@@ -124,6 +149,7 @@ app.get('/', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/auth', oauthRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/job-applications', jobApplicationRoutes);
 app.use('/api/connects', connectRoutes);
@@ -134,6 +160,10 @@ app.use('/api/freelancer', freelancerRoutes);
 app.use('/api/client', clientRoutes);
 app.use('/api/jobs', jobPostRoutes);
 app.use('/api/centrifugo', centrifugoRoutes);
+app.use('/api/novu', novuRoutes);
+app.use('/api/jitsi', jitsiRoutes);
+app.use('/api/call-notes', callNoteRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -154,7 +184,14 @@ app.use('*', (req, res) => {
       'GET /api/users/:id',
       'PUT /api/users/:id',
       'DELETE /api/users/:id',
+      // Job Applications
       'GET /api/job-applications',
+      'GET /api/job-applications/my-applications',
+      'GET /api/job-applications/job/:jobPostId',
+      'GET /api/job-applications/:applicationId',
+      'PUT /api/job-applications/:applicationId/status',
+      'PUT /api/job-applications/:applicationId/withdraw',
+      'GET /api/job-applications/statistics',
       'POST /api/job-applications',
       'GET /api/connects',
       'POST /api/connects/purchase',

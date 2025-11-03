@@ -23,11 +23,8 @@ module.exports = (sequelize, DataTypes) => {
         as: 'applications'
       });
       
-      // Job post can have multiple contracts
-      this.hasMany(models.Contract, {
-        foreignKey: 'jobPostId',
-        as: 'contracts'
-      });
+      // Contracts are linked via job applications, not directly to job posts
+      // (Removed incorrect association)
     }
   }
   JobPost.init({
@@ -55,7 +52,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: 'Users',
+        model: 'users',
         key: 'id'
       }
     },
@@ -130,6 +127,12 @@ module.exports = (sequelize, DataTypes) => {
     isUrgent: {
       type: DataTypes.BOOLEAN,
       defaultValue: false
+    },
+    // Hire type - who can apply (freelancer, agency, or both)
+    hireType: {
+      type: DataTypes.ENUM('freelancer', 'agency', 'both'),
+      defaultValue: 'both',
+      allowNull: false
     }
   }, {
     sequelize,

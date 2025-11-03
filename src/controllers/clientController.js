@@ -145,14 +145,49 @@ const searchFreelancers = asyncHandler(async (req, res) => {
     include: [
       {
         model: User,
-        as: 'user',
-        attributes: ['id', 'email', 'firstName', 'lastName', 'profileImage', 'connectBalance']
+        as: 'freelancerUser',
+        attributes: [
+          'id', 
+          'email', 
+          'firstName', 
+          'lastName', 
+          'profileImage', 
+          'connectBalance',
+          'averageRating',
+          'totalRatings',
+          'totalReviews'
+        ]
       }
     ],
     order: [['createdAt', 'DESC']],
     limit: parseInt(limit),
     offset: parseInt(offset)
   });
+
+  // Attach simple platform stats to each freelancer (small N, acceptable for UI page)
+  await Promise.all(
+    freelancers.map(async (f) => {
+      try {
+        const fid = f.id;
+        const [completedContracts, activeContracts, totalContracts] = await Promise.all([
+          Contract.count({ where: { freelancerId: fid, contractStatus: 'completed' } }),
+          Contract.count({ where: { freelancerId: fid, contractStatus: 'active' } }),
+          Contract.count({ where: { freelancerId: fid } }),
+        ]);
+        // Get real ratings from user model
+        const avgRating = f.freelancerUser?.averageRating || 0;
+        const reviewsCount = f.freelancerUser?.totalReviews || 0;
+        
+        f.dataValues.stats = {
+          completedContracts,
+          activeContracts,
+          totalContracts,
+          avgRating: parseFloat(avgRating),
+          reviewsCount,
+        };
+      } catch {}
+    })
+  );
 
   const totalPages = Math.ceil(count / limit);
 
@@ -179,8 +214,24 @@ const getFreelancerProfile = asyncHandler(async (req, res) => {
     include: [
       {
         model: User,
-        as: 'user',
-        attributes: ['id', 'email', 'firstName', 'lastName', 'profileImage']
+        as: 'freelancerUser',
+        attributes: [
+          'id', 
+          'email', 
+          'firstName', 
+          'lastName', 
+          'profileImage',
+          'bio',
+          'country',
+          'hourlyRate',
+          'availability',
+          'skills',
+          'experiences',
+          'portfolioItems',
+          'averageRating',
+          'totalRatings',
+          'totalReviews'
+        ]
       }
     ]
   });
@@ -192,9 +243,27 @@ const getFreelancerProfile = asyncHandler(async (req, res) => {
     });
   }
 
+  // Compute simple platform stats for this freelancer
+  const [completedContracts, activeContracts, totalContracts] = await Promise.all([
+    Contract.count({ where: { freelancerId: freelancer.id, contractStatus: 'completed' } }),
+    Contract.count({ where: { freelancerId: freelancer.id, contractStatus: 'active' } }),
+    Contract.count({ where: { freelancerId: freelancer.id } }),
+  ]);
+
+  // Get real rating from user model
+  const avgRating = freelancer.freelancerUser?.averageRating || 0;
+  const reviewsCount = freelancer.freelancerUser?.totalReviews || 0;
+
   res.json({
     success: true,
-    freelancer
+    freelancer,
+    stats: {
+      completedContracts,
+      activeContracts,
+      totalContracts,
+      avgRating: parseFloat(avgRating),
+      reviewsCount,
+    }
   });
 });
 
@@ -354,8 +423,8 @@ const getMyContracts = asyncHandler(async (req, res) => {
         include: [
           {
             model: User,
-            as: 'user',
-            attributes: ['id', 'firstName', 'lastName', 'profileImage']
+            as: 'freelancerUser',
+            attributes: ['id', 'firstName', 'lastName', 'profileImage', 'email']
           }
         ]
       }
@@ -374,6 +443,7 @@ const getMyContracts = asyncHandler(async (req, res) => {
       currentPage: parseInt(page),
       totalPages,
       totalContracts: count,
+      contractsPerPage: parseInt(limit),
       hasNext: page < totalPages,
       hasPrev: page > 1
     }
@@ -403,6 +473,47 @@ const createContract = asyncHandler(async (req, res) => {
 module.exports = {
   searchFreelancers,
   getFreelancerProfile,
+  // New: public handle-based lookup
+  getFreelancerByUsername: asyncHandler(async (req, res) => {
+    const { username } = req.params;
+    if (!username) {
+      return res.status(400).json({ success: false, message: 'username is required' });
+    }
+
+    // Find freelancer by joining the associated User.username
+    const freelancer = await Freelancer.findOne({
+      include: [
+        {
+          model: User,
+          as: 'freelancerUser',
+          where: { username },
+          attributes: ['id', 'email', 'firstName', 'lastName', 'profileImage', 'username']
+        }
+      ]
+    });
+
+    if (!freelancer) {
+      return res.status(404).json({ success: false, message: 'Freelancer not found' });
+    }
+
+    const [completedContracts, activeContracts, totalContracts] = await Promise.all([
+      Contract.count({ where: { freelancerId: freelancer.id, contractStatus: 'completed' } }),
+      Contract.count({ where: { freelancerId: freelancer.id, contractStatus: 'active' } }),
+      Contract.count({ where: { freelancerId: freelancer.id } }),
+    ]);
+
+    return res.json({
+      success: true,
+      freelancer,
+      stats: {
+        completedContracts,
+        activeContracts,
+        totalContracts,
+        avgRating: typeof freelancer.avgRating === 'number' ? freelancer.avgRating : 0,
+        reviewsCount: typeof freelancer.reviewsCount === 'number' ? freelancer.reviewsCount : 0,
+      }
+    });
+  }),
   createJobPost,
   getMyJobPosts,
   getJobApplications,
@@ -410,3 +521,48 @@ module.exports = {
   getMyContracts,
   createContract
 };
+
+// Lightweight suggestions for freelancer search (public or auth)
+module.exports.suggestFreelancers = asyncHandler(async (req, res) => {
+  const { q, limit = 5 } = req.query;
+  const lim = Number(limit) || 5;
+  let suggestions = [];
+  try {
+    suggestions = await osFreelancers.suggestFreelancers({ q, limit: lim });
+  } catch (e) {
+    // ignore and fallback
+  }
+
+  if (!Array.isArray(suggestions) || suggestions.length === 0) {
+    // Fallback to DB LIKE search (visibility: public)
+    const term = (q || '').trim();
+    if (term) {
+      const whereClause = { visibility: 'public' };
+      // We will filter by name/expertise/shortBio via include and ORs
+      const rows = await Freelancer.findAll({
+        where: whereClause,
+        include: [
+          {
+            model: User,
+            as: 'freelancerUser',
+            attributes: ['firstName', 'lastName'],
+            where: {
+              [Op.or]: [
+                { firstName: { [Op.like]: `%${term}%` } },
+                { lastName: { [Op.like]: `%${term}%` } },
+              ]
+            }
+          }
+        ],
+        limit: lim,
+      });
+      suggestions = rows.map(r => ({
+        id: r.id,
+        name: `${r.freelancerUser?.firstName || ''} ${r.freelancerUser?.lastName || ''}`.trim(),
+        expertise: r.expertise || r.shortBio || undefined,
+      })).filter(x => x.name);
+    }
+  }
+
+  res.json({ success: true, suggestions });
+});

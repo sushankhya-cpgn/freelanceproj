@@ -93,6 +93,11 @@ const clientController = require('../controllers/clientController');
  *                       type: boolean
  */
 router.get('/freelancers/search', authenticateToken, requireRole('client'), clientController.searchFreelancers);
+// Public read-only search
+router.get('/freelancers/public/search', clientController.searchFreelancers);
+// Suggestions (auth and public)
+router.get('/freelancers/suggest', authenticateToken, requireRole('client'), clientController.suggestFreelancers);
+router.get('/freelancers/public/suggest', clientController.suggestFreelancers);
 
 /**
  * @swagger
@@ -125,6 +130,8 @@ router.get('/freelancers/search', authenticateToken, requireRole('client'), clie
  *         description: Freelancer not found
  */
 router.get('/freelancers/:id', authenticateToken, requireRole('client'), clientController.getFreelancerProfile);
+// Public read-only profile view
+router.get('/freelancers/public/:id', clientController.getFreelancerProfile);
 
 /**
  * @swagger

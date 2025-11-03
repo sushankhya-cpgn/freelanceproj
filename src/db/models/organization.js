@@ -11,7 +11,7 @@ module.exports = (sequelize) => {
       // Organization belongs to a user
       this.belongsTo(models.User, {
         foreignKey: 'userId',
-        as: 'user'
+        as: 'organizationUser'
       });
       
       // Organization can have multiple job posts
@@ -39,7 +39,7 @@ module.exports = (sequelize) => {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: 'Users',
+        model: 'users',
         key: 'id'
       }
     },
@@ -75,6 +75,7 @@ module.exports = (sequelize) => {
   }, {
     sequelize,
     modelName: 'Organization',
+    tableName: 'organizations',
   });
 
   return Organization;

@@ -15,10 +15,20 @@ const {
 // @access  Private
 router.post('/', authenticateToken, validateJobApplication, jobApplicationController.applyForJob);
 
+// @route   GET /api/job-applications
+// @desc    Get user's job applications (alias of /my-applications)
+// @access  Private
+router.get('/', authenticateToken, validatePagination, jobApplicationController.getMyApplications);
+
 // @route   GET /api/job-applications/my-applications
 // @desc    Get user's job applications
 // @access  Private
 router.get('/my-applications', authenticateToken, validatePagination, jobApplicationController.getMyApplications);
+
+// @route   GET /api/job-applications/statistics
+// @desc    Get application statistics
+// @access  Private
+router.get('/statistics', authenticateToken, jobApplicationController.getApplicationStatistics);
 
 // @route   GET /api/job-applications/job/:jobPostId
 // @desc    Get job applications for a job post

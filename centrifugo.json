@@ -1,44 +1,52 @@
 {
-  "token_hmac_secret_key": "worklab_secret_key_2024",
-  "admin_password": "admin123",
-  "admin_secret": "admin_secret_2024",
-  "api_key": "worklab_api_key_2024",
-  "allowed_origins": ["*"],
-  "websocket_compression": true,
-  "websocket_compression_threshold": 1024,
-  "websocket_compression_level": 3,
-  "websocket_read_buffer_size": 32768,
-  "websocket_write_buffer_size": 32768,
-  "websocket_write_timeout": "10s",
-  "websocket_ping_interval": "25s",
-  "websocket_pong_timeout": "5s",
-  "websocket_read_timeout": "60s",
-  "websocket_use_compression": true,
-  "log_level": "info",
-  "log_file": "centrifugo.log",
+  "token_hmac_secret_key": "worklab_centrifugo_secret_key_2024",
+  "admin": true,
+  "admin_insecure": true,
+  "api_key": "worklab_centrifugo_api_key_2024",
+  "api_insecure": true,
+
+  "allowed_origins": [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+  ],
+
+  "allow_subscribe_for_client": true,
+  "allow_publish_for_client": false,
+  "allow_history_for_client": true,
+  "allow_presence_for_client": true,
+
+  "history_size": 100,
+  "history_ttl": "24h",
+  "force_recovery": false,
+
   "namespaces": [
     {
-      "name": "chat",
-      "publish": true,
-      "subscribe_to_publish": true,
-      "presence": true,
-      "join_leave": true,
+      "name": "conversation",
+      "allow_subscribe_for_client": true,
+      "allow_publish_for_client": false,
+      "allow_history_for_client": true,
+      "allow_presence_for_client": true,
       "history_size": 100,
       "history_ttl": "24h",
-      "recover": true,
-      "position": true,
-      "history_recover": true
+      "history_meta_ttl": "24h",
+      "force_recovery": true,
+      "force_positioning": true,
+      "force_push_join_leave": true
+    },
+    {
+      "name": "user",
+      "allow_subscribe_for_client": true,
+      "allow_publish_for_client": false,
+      "allow_history_for_client": true,
+      "allow_presence_for_client": true,
+      "history_size": 100,
+      "history_ttl": "24h",
+      "history_meta_ttl": "24h",
+      "force_recovery": true,
+      "force_positioning": true
     }
   ],
-  "channels": [
-    {
-      "name": "chat:conversation:*",
-      "publish": true,
-      "subscribe_to_publish": true,
-      "presence": true,
-      "join_leave": true,
-      "history_size": 50,
-      "history_ttl": "7d"
-    }
-  ]
+
+  "engine": "memory",
+  "log_level": "trace"
 }

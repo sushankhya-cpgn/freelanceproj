@@ -99,6 +99,7 @@ const validateContractCreation = [
     .isISO8601()
     .withMessage('Valid contract start date is required'),
   body('contractEndDate')
+    .optional()
     .isISO8601()
     .withMessage('Valid contract end date is required')
 ];
@@ -108,14 +109,24 @@ const validateMessage = [
   body('receiverId')
     .isInt({ min: 1 })
     .withMessage('Valid receiver ID is required'),
+  // Allow empty content for certain message types (e.g., video_call invites which carry JSON)
   body('content')
-    .trim()
-    .isLength({ min: 1, max: 2000 })
-    .withMessage('Message content must be between 1 and 2000 characters'),
+    .custom((value, { req }) => {
+      const type = req.body.messageType || 'text';
+      if (type === 'video_call' || type === 'contract') {
+        // Allow empty string or JSON string up to 4000 chars
+        if (typeof value === 'undefined' || value === null) return true;
+        if (typeof value === 'string' && value.length <= 4000) return true;
+        return false;
+      }
+      // Default text message: require 1..2000 chars
+      return typeof value === 'string' && value.trim().length >= 1 && value.length <= 2000;
+    })
+    .withMessage('Invalid message content for the provided message type'),
   body('messageType')
     .optional()
-    .isIn(['text', 'image', 'file', 'system'])
-    .withMessage('Message type must be text, image, file, or system'),
+    .isIn(['text', 'image', 'file', 'system', 'contract', 'video_call'])
+    .withMessage('Message type must be text, image, file, system, contract, or video_call'),
   body('attachments')
     .optional()
     .isArray()

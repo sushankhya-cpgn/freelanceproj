@@ -1,7 +1,7 @@
 {
   "development": {
     "username": "root",
-    "password": "",
+    "password":"",
     "database": "worklab",
     "host": "127.0.0.1",
     "port": 3306,
@@ -16,7 +16,7 @@
   },
   "test": {
     "username": "root",
-    "password": "",
+    "password": "mysql",
     "database": "worklab_test",
     "host": "127.0.0.1",
     "port": 3306,

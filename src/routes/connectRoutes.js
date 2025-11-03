@@ -13,6 +13,11 @@ const {
 // @access  Private
 router.post('/purchase', authenticateToken, validateConnectPurchase, connectController.purchaseConnects);
 
+// @route   POST /api/connects/add
+// @desc    Add connects directly (for testing)
+// @access  Private
+router.post('/add', authenticateToken, connectController.addConnects);
+
 // @route   POST /api/connects/create-payment-intent
 // @desc    Create payment intent for connects
 // @access  Private

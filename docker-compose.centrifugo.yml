@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  centrifugo:
+    image: centrifugo/centrifugo:v5
+    container_name: worklab-centrifugo
+    volumes:
+      - ./centrifugo.json:/centrifugo/config.json
+    command: centrifugo -c config.json
+    ports:
+      - "8000:8000"  # HTTP API and WebSocket
+    environment:
+      - CENTRIFUGO_LOG_LEVEL=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - worklab-network
+
+networks:
+  worklab-network:
+    driver: bridge

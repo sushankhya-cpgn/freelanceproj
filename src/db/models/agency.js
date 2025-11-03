@@ -8,7 +8,7 @@ module.exports = (sequelize, DataTypes) => {
       // Agency belongs to a user
       this.belongsTo(models.User, {
         foreignKey: 'userId',
-        as: 'user'
+        as: 'agencyUser'
       });
       
       // Agency can have multiple freelancers
@@ -17,11 +17,8 @@ module.exports = (sequelize, DataTypes) => {
         as: 'freelancers'
       });
       
-      // Agency can have multiple job applications
-      this.hasMany(models.JobApplication, {
-        foreignKey: 'agencyId',
-        as: 'jobApplications'
-      });
+      // Job applications are linked via User.userId, not agencyId
+      // (Removed incorrect association)
       
       // Agency can have multiple contracts
       this.hasMany(models.Contract, {

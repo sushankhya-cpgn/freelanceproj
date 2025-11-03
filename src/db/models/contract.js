@@ -60,7 +60,7 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: true,
                 references: {
-                    model: 'Freelancers',
+                    model: 'freelancers',
                     key: 'id',
                 },
             },
@@ -68,7 +68,7 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: false,
                 references: {
-                    model: 'Organizations',
+                    model: 'organizations',
                     key: 'id',
                 },
             },
@@ -162,7 +162,7 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: true,
                 references: {
-                    model: 'Users',
+                    model: 'users',
                     key: 'id',
                 },
             },
@@ -170,7 +170,7 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: true,
                 references: {
-                    model: 'Agencies',
+                    model: 'agencies',
                     key: 'id',
                 },
             },
@@ -178,7 +178,7 @@ module.exports = (sequelize, DataTypes) => {
                 type: DataTypes.INTEGER,
                 allowNull: true,
                 references: {
-                    model: 'JobApplications',
+                    model: 'job_applications',
                     key: 'id',
                 },
             },
@@ -249,6 +249,23 @@ module.exports = (sequelize, DataTypes) => {
             },
             disputeResolution: {
                 type: DataTypes.TEXT,
+                allowNull: true,
+            },
+            // Rating system - client rates freelancer
+            clientRating: {
+                type: DataTypes.DECIMAL(2, 1),
+                allowNull: true,
+                validate: {
+                    min: 1.0,
+                    max: 5.0
+                }
+            },
+            clientReview: {
+                type: DataTypes.TEXT,
+                allowNull: true,
+            },
+            ratedAt: {
+                type: DataTypes.DATE,
                 allowNull: true,
             }
 

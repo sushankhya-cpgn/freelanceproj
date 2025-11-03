@@ -1,4 +1,5 @@
 const { User, Freelancer, JobPost, JobApplication, Connect, sequelize } = require('../db');
+const db = require('../db');
 const { Op } = require('sequelize');
 const asyncHandler = require('express-async-handler');
 
@@ -251,22 +252,36 @@ const getProfile = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Update freelancer profile
+// @desc    Create or update freelancer profile
 // @route   PUT /api/freelancer/profile
 // @access  Private (Freelancer)
 const updateProfile = asyncHandler(async (req, res) => {
-  const freelancerId = req.user.freelancerId;
+  const userId = req.userId;
   const updateData = req.body;
 
-  const freelancer = await Freelancer.findByPk(freelancerId);
-  if (!freelancer) {
-    return res.status(404).json({
-      success: false,
-      message: 'Freelancer profile not found'
-    });
-  }
+  // Check if freelancer profile exists
+  let freelancer = await Freelancer.findOne({
+    where: { userId },
+    include: [{ model: db.User, as: 'freelancerUser' }]
+  });
 
-  await freelancer.update(updateData);
+  if (!freelancer) {
+    // Create new freelancer profile
+    freelancer = await Freelancer.create({
+      userId,
+      firstName: updateData.firstName || req.user.firstName,
+      lastName: updateData.lastName || req.user.lastName,
+      email: updateData.email || req.user.email,
+      shortBio: updateData.shortBio || 'New freelancer',
+      yearsOfExperience: updateData.yearsOfExperience || '0-1 years',
+      expertise: updateData.expertise || 'General',
+      userType: updateData.userType || 'it',
+      visibility: updateData.visibility || 'public'
+    });
+  } else {
+    // Update existing profile
+    await freelancer.update(updateData);
+  }
 
   res.json({
     success: true,

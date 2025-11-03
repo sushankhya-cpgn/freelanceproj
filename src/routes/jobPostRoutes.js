@@ -1,8 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateToken, requireRole } = require('../middleware/auth');
+const { authenticateToken, requireRole, requireClientOrAgency } = require('../middleware/auth');
 const jobPostController = require('../controllers/jobPostController');
-
 /**
  * @swagger
  * tags:
@@ -153,6 +152,12 @@ router.get('/featured', jobPostController.getFeaturedJobs);
  */
 router.get('/urgent', jobPostController.getUrgentJobs);
 
+// Search jobs via OpenSearch
+router.get('/search', jobPostController.searchJobs);
+
+// Suggestions for typeahead
+router.get('/suggest', jobPostController.suggestJobs);
+
 /**
  * @swagger
  * /api/jobs/my-jobs:
@@ -208,9 +213,9 @@ router.get('/urgent', jobPostController.getUrgentJobs);
  *                     hasPrev:
  *                       type: boolean
  *       403:
- *         description: Access denied - only clients can access this endpoint
+ *         description: Access denied - only clients and agencies can access this endpoint
  */
-router.get('/my-jobs', authenticateToken, requireRole('client'), jobPostController.getMyJobs);
+router.get('/my-jobs', authenticateToken, requireClientOrAgency, jobPostController.getMyJobs);
 
 /**
  * @swagger
@@ -387,11 +392,9 @@ router.get('/my-jobs', authenticateToken, requireRole('client'), jobPostControll
  *         description: Access denied - only clients can post jobs
  */
 router.post('/', authenticateToken, requireRole('client'), jobPostController.createJobPost);
-
 router.get('/:id', jobPostController.getJobById);
 router.put('/:id', authenticateToken, requireRole('client'), jobPostController.updateJobPost);
 router.delete('/:id', authenticateToken, requireRole('client'), jobPostController.deleteJobPost);
-
 /**
  * @swagger
  * /api/jobs/{id}/stats:
@@ -429,6 +432,6 @@ router.delete('/:id', authenticateToken, requireRole('client'), jobPostControlle
  *       404:
  *         description: Job not found or access denied
  */
-router.get('/:id/stats', authenticateToken, requireRole('client'), jobPostController.getJobStats);
+router.get('/:id/stats', authenticateToken, requireClientOrAgency, jobPostController.getJobStats);
 
 module.exports = router;

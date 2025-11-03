@@ -29,6 +29,16 @@ router.get('/:contractId', authenticateToken, validateContractId, requireContrac
 // @access  Private
 router.put('/:contractId/accept', authenticateToken, validateContractId, requireContractAccess, contractController.acceptContract);
 
+// @route   PUT /api/contracts/:contractId/decline
+// @desc    Decline contract
+// @access  Private
+router.put('/:contractId/decline', authenticateToken, validateContractId, requireContractAccess, contractController.declineContract);
+
+// @route   DELETE /api/contracts/:contractId
+// @desc    Delete contract
+// @access  Private
+router.delete('/:contractId', authenticateToken, validateContractId, requireContractAccess, contractController.deleteContract);
+
 // @route   POST /api/contracts/:contractId/request-payment
 // @desc    Request payment
 // @access  Private
@@ -53,6 +63,11 @@ router.post('/:contractId/dispute', authenticateToken, validateContractId, requi
 // @desc    Resolve dispute
 // @access  Private
 router.put('/:contractId/resolve-dispute', authenticateToken, validateContractId, requireContractAccess, contractController.resolveDispute);
+
+// @route   POST /api/contracts/:contractId/rate
+// @desc    Rate freelancer on completed contract
+// @access  Private (Client only)
+router.post('/:contractId/rate', authenticateToken, validateContractId, contractController.rateFreelancer);
 
 // @route   GET /api/contracts/statistics
 // @desc    Get contract statistics

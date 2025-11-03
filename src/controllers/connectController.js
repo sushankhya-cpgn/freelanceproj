@@ -128,8 +128,9 @@ const getConnectStatistics = asyncHandler(async (req, res) => {
     where: { userId, type: 'purchased', status: 'completed' }
   }) || 0;
 
+  // Calculate total used from all connect records
   const totalUsed = await db.Connect.sum('used', {
-    where: { userId, type: 'used' }
+    where: { userId }
   }) || 0;
 
   const totalEarned = await db.Connect.sum('quantity', {
@@ -280,30 +281,19 @@ const useConnects = asyncHandler(async (req, res) => {
     });
   }
 
-  // Create connect usage record
-  const connect = await db.Connect.create({
-    userId,
-    type: 'used',
-    amount: 0,
-    quantity,
-    status: 'completed',
-    used: quantity,
-    remaining: 0,
-    metadata: {
-      jobApplicationId,
-      usedAt: new Date().toISOString()
-    }
+  // Update user's connect balance (no need to create a separate "used" record)
+  const newBalance = user.connectBalance - quantity;
+  await user.update({
+    connectBalance: newBalance
   });
 
-  // Update user's connect balance
-  await user.update({
-    connectBalance: user.connectBalance - quantity
-  });
+  // Optionally: Update existing connect records to mark them as used
+  // For now, we just track the balance change
 
   res.json({
     message: 'Connects used successfully',
-    connect,
-    newBalance: user.connectBalance
+    quantity,
+    newBalance
   });
 });
 
@@ -349,6 +339,50 @@ const getConnectPackages = asyncHandler(async (req, res) => {
   res.json({ packages });
 });
 
+// @desc    Add connects directly (for testing)
+// @route   POST /api/connects/add
+// @access  Private
+const addConnects = asyncHandler(async (req, res) => {
+  const { quantity, type = 'bonus' } = req.body;
+  const userId = req.userId;
+
+  if (!quantity || quantity <= 0) {
+    return res.status(400).json({ error: 'Invalid quantity' });
+  }
+
+  try {
+    // Create connect record
+    const connect = await db.Connect.create({
+      userId,
+      quantity,
+      type,
+      amount: 0, // Free connects for testing
+      status: 'completed',
+      remaining: quantity,
+      metadata: {
+        description: `Added ${quantity} connects for testing`
+      }
+    });
+
+    // Update user's connect balance
+    const user = await db.User.findByPk(userId);
+    if (user) {
+      user.connectBalance = (user.connectBalance || 0) + quantity;
+      await user.save();
+    }
+
+    res.json({
+      success: true,
+      message: `Added ${quantity} connects successfully`,
+      connect,
+      newBalance: user.connectBalance
+    });
+  } catch (error) {
+    console.error('Error adding connects:', error);
+    res.status(500).json({ error: 'Failed to add connects' });
+  }
+});
+
 module.exports = {
   purchaseConnects,
   getConnects,
@@ -357,4 +391,5 @@ module.exports = {
   confirmPayment,
   useConnects,
   getConnectPackages,
+  addConnects
 };

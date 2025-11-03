@@ -2,7 +2,8 @@
  * Centrifugo Service
  * Handles real-time messaging via Centrifugo
  */
-const Client = require('jscent');
+require('dotenv').config();
+const axios = require('axios');
 const { CENTRIFUGO } = require('../constants');
 const { ExternalServiceError } = require('../exceptions/AppError');
 
@@ -10,16 +11,27 @@ class CentrifugoService {
   constructor() {
     this.centrifugoUrl = process.env.CENTRIFUGO_URL || CENTRIFUGO.DEFAULT_URL;
     this.apiUrl = process.env.CENTRIFUGO_API_URL || CENTRIFUGO.API_URL;
-    this.apiKey = process.env.CENTRIFUGO_API_KEY || 'worklab_api_key_2024';
-    this.secret = process.env.CENTRIFUGO_SECRET || 'worklab_secret_key_2024';
+    // Use the credentials from centrifugo.json if not in env
+    this.apiKey = process.env.CENTRIFUGO_API_KEY || 'worklab_centrifugo_api_key_2024';
+    this.secret = process.env.CENTRIFUGO_SECRET || 'worklab_centrifugo_secret_key_2024';
     
-    this.client = new Client({
-      url: this.apiUrl,
-      apiKey: this.apiKey,
-      secret: this.secret
+    if (!this.apiKey || !this.secret) {
+      console.error('❌ Centrifugo API key or secret not configured');
+      throw new Error('Centrifugo configuration missing');
+    }
+    
+    // Create axios instance for Centrifugo API calls
+    this.client = axios.create({
+      baseURL: this.apiUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `apikey ${this.apiKey}`
+      }
     });
     
     console.log('🔧 Centrifugo Service initialized');
+    console.log('🔑 Using API Key:', this.apiKey.substring(0, 20) + '...');
+    console.log('🔐 Using Secret:', this.secret.substring(0, 20) + '...');
   }
 
   /**
@@ -31,13 +43,18 @@ class CentrifugoService {
   generateToken(userId, userInfo = {}) {
     try {
       const payload = {
-        sub: userId,
+        sub: userId.toString(),
         exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
+        iat: Math.floor(Date.now() / 1000),
         ...userInfo
       };
-      
+
       const jwt = require('jsonwebtoken');
-      return jwt.sign(payload, this.secret);
+      return jwt.sign(payload, this.secret, {
+        algorithm: 'HS256',
+        issuer: 'worklab',
+        audience: 'centrifugo'
+      });
     } catch (error) {
       console.error('Error generating Centrifugo token:', error);
       throw new ExternalServiceError('Centrifugo', 'Failed to generate token');
@@ -52,11 +69,27 @@ class CentrifugoService {
    */
   async publishMessage(channel, data) {
     try {
-      await this.client.publish(channel, data);
+      console.log(`🔧 Publishing to Centrifugo API: ${this.apiUrl}`);
+      console.log(`📡 Channel: ${channel}`);
+      console.log(`📦 Data:`, JSON.stringify(data).substring(0, 200) + (JSON.stringify(data).length > 200 ? '...' : ''));
+      
+      const response = await this.client.post('/publish', {
+        channel: channel,
+        data: data
+      });
+      
+      console.log(`✅ Publish successful to channel '${channel}'`);
+      console.log(`📋 Publish result:`, response.data?.result || response.data);
       return true;
     } catch (error) {
-      console.error('Error publishing message via Centrifugo:', error);
-      throw new ExternalServiceError('Centrifugo', 'Failed to publish message');
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      const errorCode = error.response?.status || 'N/A';
+      console.error(`❌ Error publishing message via Centrifugo (status: ${errorCode}):`, errorMsg);
+      console.error(`❌ Request details - Channel: ${channel}, API URL: ${this.apiUrl}`);
+      console.error(`❌ Error details:`, error.response?.data || error);
+      
+      // Still throw but provide detailed information
+      throw new ExternalServiceError('Centrifugo', `Failed to publish message to channel '${channel}': ${errorMsg}`);
     }
   }
 
@@ -68,10 +101,14 @@ class CentrifugoService {
    */
   async getHistory(channel, options = {}) {
     try {
-      const history = await this.client.history(channel, options);
-      return history.publications || [];
+      const response = await this.client.post('/history', {
+        channel: channel,
+        ...options
+      });
+      const result = response.data.result;
+      return result && result.publications ? result.publications : [];
     } catch (error) {
-      console.error('Error getting history via Centrifugo:', error);
+      console.error('Error getting history via Centrifugo:', error.response?.data || error.message);
       throw new ExternalServiceError('Centrifugo', 'Failed to get history');
     }
   }
@@ -83,10 +120,12 @@ class CentrifugoService {
    */
   async getPresence(channel) {
     try {
-      const presence = await this.client.presence(channel);
-      return presence;
+      const response = await this.client.post('/presence', {
+        channel: channel
+      });
+      return response.data.result;
     } catch (error) {
-      console.error('Error getting presence via Centrifugo:', error);
+      console.error('Error getting presence via Centrifugo:', error.response?.data || error.message);
       throw new ExternalServiceError('Centrifugo', 'Failed to get presence');
     }
   }

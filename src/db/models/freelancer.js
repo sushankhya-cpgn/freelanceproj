@@ -8,14 +8,11 @@ module.exports = (sequelize, DataTypes) => {
       // Freelancer belongs to a user
       this.belongsTo(models.User, {
         foreignKey: 'userId',
-        as: 'user'
+        as: 'freelancerUser'
       });
       
-      // Freelancer can have multiple job applications
-      this.hasMany(models.JobApplication, {
-        foreignKey: 'freelancerId',
-        as: 'jobApplications'
-      });
+      // Job applications are linked via User.userId, not freelancerId
+      // (Removed incorrect association)
       
       // Freelancer can have multiple contracts
       this.hasMany(models.Contract, {
@@ -46,7 +43,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: true,
       references: {
-        model: 'Users',
+        model: 'users',
         key: 'id'
       }
     },
@@ -131,6 +128,7 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'Freelancer',
+    tableName: 'freelancers',
   });
   return Freelancer;
 };

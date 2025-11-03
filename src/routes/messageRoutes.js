@@ -3,6 +3,7 @@ const router = express.Router();
 
 const messageController = require('../controllers/messageController');
 const { authenticateToken } = require('../middleware/auth');
+const { uploadMessageFiles, handleUploadError } = require('../middleware/upload');
 const {
   validateMessage,
   validateId,
@@ -13,9 +14,9 @@ const {
 } = require('../middleware/validation');
 
 // @route   POST /api/messages
-// @desc    Send message
+// @desc    Send message (with optional file attachments)
 // @access  Private
-router.post('/', authenticateToken, validateMessage, messageController.sendMessage);
+router.post('/', authenticateToken, uploadMessageFiles, handleUploadError, messageController.sendMessage);
 
 // @route   GET /api/messages/conversation/:userId
 // @desc    Get messages for a conversation

@@ -66,4 +66,14 @@ router.get('/:agencyId/jobs', authenticateToken, validateAgencyId, validatePagin
 // @access  Private
 router.get('/:agencyId/statistics', authenticateToken, validateAgencyId, agencyController.getAgencyStatistics);
 
+// @route   GET /api/agencies/freelancers/search
+// @desc    Search freelancers
+// @access  Private (Agency)
+router.get('/freelancers/search', authenticateToken, requireAgency, validatePagination, agencyController.searchFreelancers);
+
+// @route   GET /api/agencies/freelancers/:id
+// @desc    Get freelancer profile details
+// @access  Private (Agency)
+router.get('/freelancers/:id', authenticateToken, requireAgency, agencyController.getFreelancerProfile);
+
 module.exports = router;

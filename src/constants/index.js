@@ -60,7 +60,9 @@ const MESSAGE_TYPES = {
   TEXT: 'text',
   IMAGE: 'image',
   FILE: 'file',
-  SYSTEM: 'system'
+  SYSTEM: 'system',
+  CONTRACT: 'contract',
+  VIDEO_CALL: 'video_call'
 };
 
 // Payment Schedules
@@ -116,7 +118,7 @@ const FILE_UPLOAD = {
 // Rate Limiting
 const RATE_LIMITS = {
   WINDOW_MS: 15 * 60 * 1000, // 15 minutes
-  MAX_REQUESTS: 100,
+  MAX_REQUESTS: 1000, // Increased for development
   MESSAGE: 'Too many requests from this IP, please try again later.'
 };
 
@@ -137,7 +139,7 @@ const DATABASE = {
   }
 };
 
-// Centrifugo
+// Centrifugo v5
 const CENTRIFUGO = {
   DEFAULT_URL: 'ws://localhost:8000/connection/websocket',
   API_URL: 'http://localhost:8000/api',
